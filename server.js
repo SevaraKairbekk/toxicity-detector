@@ -9,15 +9,15 @@ app.use(cors());
 app.use(express.json());
 
 //  КОНФИГУРАЦИЯ 
-const HF_TOKEN = "";
+const HF_TOKEN = process.env.HF_TOKEN;
 const MODEL_NAME = "cointegrated/rubert-tiny-toxicity";
 const API_URL = `https://router.huggingface.co/hf-inference/models/${MODEL_NAME}`;
 const TIMEOUT_MS = 30000;
-const JWT_SECRET = "your-secret-key-change-this"; // Смените на сложный ключ!
+const JWT_SECRET = process.env.JWT_SECRET; // Смените на сложный ключ!
 
 // Деректер базасына қосылу 
-const MONGODB_URI = "mongodb+srv://user123:<db_password>@cluster.ye9rgkq.mongodb.net/?appName=Cluster
-";
+const MONGODB_URI = process.env.MONGODB_URI
+;
 
 mongoose.connect(MONGODB_URI)
     .then(() => console.log("MongoDB қосылды"))
@@ -125,7 +125,7 @@ app.post("/check", authenticateToken, async (req, res) => {
     }
     
     try {
-        console.log(`📝 Мәтінді талдау: "${text.trim()}" (Пайдаланушы: ${req.user.username})`);
+        console.log(` Мәтінді талдау: "${text.trim()}" (Пайдаланушы: ${req.user.username})`);
         
         const fetchPromise = fetch(API_URL, {
             method: "POST",
