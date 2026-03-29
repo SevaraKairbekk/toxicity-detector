@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
 
+// API URL из переменной окружения (для Render) или localhost для разработки
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 function App() {
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   
-  //  аутентификация
+  // аутентификация
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -18,7 +21,7 @@ function App() {
   const [stats, setStats] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Қолданушылар деректерін енгізу
+  // Загрузка данных пользователя при входе
   useEffect(() => {
     if (token) {
       fetchUserData();
@@ -27,7 +30,7 @@ function App() {
 
   const fetchUserData = async () => {
     try {
-      const statsRes = await fetch("http://localhost:5000/api/stats", {
+      const statsRes = await fetch(`${API_URL}/api/stats`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (statsRes.ok) {
@@ -35,13 +38,13 @@ function App() {
         setStats(statsData);
       }
     } catch (err) {
-      console.error("Деректерді енгізудегі қателік:", err);
+      console.error("Ошибка загрузки данных:", err);
     }
   };
 
   const fetchHistory = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/history", {
+      const response = await fetch(`${API_URL}/api/history`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (response.ok) {
@@ -50,7 +53,7 @@ function App() {
         setShowHistory(true);
       }
     } catch (err) {
-      console.error("Тарихты енгізудегі қателік:", err);
+      console.error("Ошибка загрузки истории:", err);
     }
   };
 
@@ -61,7 +64,7 @@ function App() {
     const endpoint = isLogin ? "/api/login" : "/api/register";
     
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isLogin ? 
@@ -106,7 +109,7 @@ function App() {
     setResult(null);
 
     try {
-      const response = await fetch("http://localhost:5000/check", {
+      const response = await fetch(`${API_URL}/check`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -203,17 +206,17 @@ function App() {
     <div className="App">
       <header className="header">
         <div className="header-top">
-          <h1> Smart Toxicity Detector</h1>
+          <h1>Smart Toxicity Detector</h1>
           <div className="user-info">
-            <span>👤 {user?.username}</span>
+            <span>{user?.username}</span>
             <button onClick={handleLogout} className="logout-btn">Шығу</button>
           </div>
         </div>
         {stats && (
           <div className="stats-bar">
-            <span> Барлығы: {stats.totalChecks}</span>
-            <span> Токсинді: {stats.toxicChecks}</span>
-            <span> Қауіпсіз: {stats.safeChecks}</span>
+            <span>Барлығы: {stats.totalChecks}</span>
+            <span>Токсинді: {stats.toxicChecks}</span>
+            <span>Қауіпсіз: {stats.safeChecks}</span>
           </div>
         )}
       </header>
@@ -266,7 +269,7 @@ function App() {
                   <div key={idx} className={`history-item ${item.result.toxic ? 'toxic' : 'safe'}`}>
                     <div className="history-text">{item.text.substring(0, 100)}...</div>
                     <div className="history-result">
-                      {item.result.toxic ? "Токсинді" : "Қауіпсіз"} ({Math.round(item.result.score * 100)}%)
+                      {item.result.toxic ? "Уытты" : "Қауіпсіз"} ({Math.round(item.result.score * 100)}%)
                     </div>
                     <div className="history-date">{new Date(item.createdAt).toLocaleString()}</div>
                   </div>
