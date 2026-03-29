@@ -1,0 +1,26 @@
+# Зависимости Node.js
+node_modules/
+client/node_modules/
+
+# Секретные данные (очень важно!)
+.env
+server.js   # Добавим этот файл в игнор, чтобы токен точно не попал на GitHub
+
+# Файлы ОС
+.DS_Store
+Thumbs.db
+
+# Установщики и большие файлы
+*.exe
+*.msi
+*.zip
+
+@"
+node_modules/
+client/node_modules/
+.env
+*.exe
+*.msi
+.DS_Store
+Thumbs.db
+"@ | Add-Content -Path .gitignore -Encoding utf8
