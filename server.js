@@ -3,13 +3,13 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const path = require("path");
 
 const app = express();
 
-// Настройка CORS для всех источников (для разработки)
-// В продакшене замените на конкретный домен
+// Настройка CORS для всех источников
 app.use(cors({
-  origin: '*', // В продакшене: 'https://your-frontend.onrender.com'
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -34,7 +34,7 @@ const MODEL_NAME = "cointegrated/rubert-tiny-toxicity";
 const API_URL = `https://router.huggingface.co/hf-inference/models/${MODEL_NAME}`;
 const TIMEOUT_MS = 30000;
 
-// Подключение к MongoDB с улучшенными настройками
+// Подключение к MongoDB
 mongoose.connect(MONGODB_URI, {
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
@@ -42,7 +42,6 @@ mongoose.connect(MONGODB_URI, {
 .then(() => console.log("MongoDB подключена успешно"))
 .catch(err => {
   console.error("Ошибка подключения к MongoDB:", err.message);
-  // Не завершаем процесс, но логируем ошибку
 });
 
 mongoose.connection.on('error', err => {
@@ -240,14 +239,12 @@ app.post("/check", authenticateToken, async (req, res) => {
         
         if (Array.isArray(data)) {
             if (data[0] && Array.isArray(data[0])) {
-                // Формат: [[{label, score}]]
                 for (const item of data[0]) {
                     if (item.label && typeof item.score === 'number') {
                         scores[item.label] = item.score;
                     }
                 }
             } else if (data[0] && data[0].label) {
-                // Формат: [{label, score}]
                 for (const item of data) {
                     if (item.label && typeof item.score === 'number') {
                         scores[item.label] = item.score;
@@ -288,7 +285,6 @@ app.post("/check", authenticateToken, async (req, res) => {
             } 
         };
         
-        // Сохраняем в историю
         await History.create({ userId: req.user.userId, text, result });
         await User.findByIdAndUpdate(req.user.userId, { $inc: { checksCount: 1 } });
         
@@ -314,7 +310,7 @@ app.get("/api/history", authenticateToken, async (req, res) => {
             .limit(50);
         res.json(history);
     } catch (error) {
-        console.error("Ошибка загрузки истории:", error);
+        console.error(" Ошибка загрузки истории:", error);
         res.status(500).json({ error: "Тарихты жүктеу мүмкін болмады" });
     }
 });
@@ -349,10 +345,15 @@ app.get("/health", (req, res) => {
     });
 });
 
-// Обработка несуществующих маршрутов
-app.use((req, res) => {
-    res.status(404).json({ error: "Маршрут табылмады" });
+// ========== ОТДАЧА СТАТИЧЕСКИХ ФАЙЛОВ REACT ==========
+// Раздача статики из папки client/build
+app.use(express.static(path.join(__dirname, 'client/build')));
+
+// Все не-API запросы отправляем на React
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
 });
+// ====================================================
 
 // Глобальный обработчик ошибок
 app.use((err, req, res, next) => {
