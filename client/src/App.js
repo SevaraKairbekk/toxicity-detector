@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
 
-// API URL из переменной окружения (для Render) или localhost для разработки
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
+// API URL из переменной окружения
+// Убираем process.env, ставим правильный URL
+const API_URL = "https://toxicity-detector-cbgc.onrender.com";
 function App() {
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
@@ -17,6 +17,7 @@ function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [authData, setAuthData] = useState({ username: "", email: "", password: "" });
   const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -25,6 +26,7 @@ function App() {
   useEffect(() => {
     if (token) {
       fetchUserData();
+      fetchHistory(); // Загружаем историю при входе
     }
   }, [token]);
 
@@ -36,6 +38,8 @@ function App() {
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStats(statsData);
+      } else if (statsRes.status === 401) {
+        handleLogout();
       }
     } catch (err) {
       console.error("Ошибка загрузки данных:", err);
@@ -50,7 +54,8 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         setHistory(data);
-        setShowHistory(true);
+      } else if (response.status === 401) {
+        handleLogout();
       }
     } catch (err) {
       console.error("Ошибка загрузки истории:", err);
@@ -60,17 +65,19 @@ function App() {
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError("");
+    setAuthLoading(true);
     
     const endpoint = isLogin ? "/api/login" : "/api/register";
     
     try {
+      const body = isLogin ? 
+        { username: authData.username, password: authData.password } :
+        authData;
+      
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isLogin ? 
-          { username: authData.username, password: authData.password } :
-          authData
-        ),
+        body: JSON.stringify(body),
       });
       
       const data = await response.json();
@@ -81,11 +88,15 @@ function App() {
         setUser(data.user);
         setShowAuth(false);
         setAuthData({ username: "", email: "", password: "" });
+        setAuthError("");
       } else {
-        setAuthError(data.error);
+        setAuthError(data.error || "Қателік орын алды");
       }
     } catch (err) {
+      console.error("Auth error:", err);
       setAuthError("Серверге қосылу мүмкін болмады");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -95,7 +106,9 @@ function App() {
     setUser(null);
     setResult(null);
     setHistory([]);
+    setStats(null);
     setShowHistory(false);
+    setError("");
   };
 
   const checkToxicity = async () => {
@@ -129,7 +142,8 @@ function App() {
       }
 
       setResult(data);
-      fetchUserData(); // Обновляем статистику
+      await fetchUserData(); // Обновляем статистику
+      await fetchHistory(); // Обновляем историю
       
     } catch (error) {
       console.error("Қателік:", error);
@@ -161,8 +175,18 @@ function App() {
         <main className="main">
           <div className="auth-container">
             <div className="auth-tabs">
-              <button className={isLogin ? "active" : ""} onClick={() => { setIsLogin(true); setAuthError(""); }}>Кіру</button>
-              <button className={!isLogin ? "active" : ""} onClick={() => { setIsLogin(false); setAuthError(""); }}>Тіркелу</button>
+              <button 
+                className={isLogin ? "active" : ""} 
+                onClick={() => { setIsLogin(true); setAuthError(""); }}
+              >
+                Кіру
+              </button>
+              <button 
+                className={!isLogin ? "active" : ""} 
+                onClick={() => { setIsLogin(false); setAuthError(""); }}
+              >
+                Тіркелу
+              </button>
             </div>
             
             <form onSubmit={handleAuth} className="auth-form">
@@ -172,6 +196,7 @@ function App() {
                 value={authData.username}
                 onChange={(e) => setAuthData({ ...authData, username: e.target.value })}
                 required
+                minLength="3"
               />
               {!isLogin && (
                 <input
@@ -188,9 +213,12 @@ function App() {
                 value={authData.password}
                 onChange={(e) => setAuthData({ ...authData, password: e.target.value })}
                 required
+                minLength="6"
               />
               {authError && <div className="error-message">{authError}</div>}
-              <button type="submit">{isLogin ? "Кіру" : "Тіркелу"}</button>
+              <button type="submit" disabled={authLoading}>
+                {authLoading ? "Күте тұрыңыз..." : (isLogin ? "Кіру" : "Тіркелу")}
+              </button>
             </form>
           </div>
         </main>
@@ -208,7 +236,7 @@ function App() {
         <div className="header-top">
           <h1>Smart Toxicity Detector</h1>
           <div className="user-info">
-            <span>{user?.username}</span>
+            <span className="username">{user?.username}</span>
             <button onClick={handleLogout} className="logout-btn">Шығу</button>
           </div>
         </div>
@@ -236,17 +264,25 @@ function App() {
             <span>Сөздер: {text.trim().split(/\s+/).filter(w => w).length}</span>
           </div>
 
-          <button 
-            onClick={checkToxicity} 
-            disabled={loading || !text.trim()}
-            className="check-button"
-          >
-            {loading ? "Анализ жүруде..." : "Мәтінді тексеру"}
-          </button>
-          
-          <button onClick={fetchHistory} className="history-button">
-            Тарихты көру
-          </button>
+          <div className="button-group">
+            <button 
+              onClick={checkToxicity} 
+              disabled={loading || !text.trim()}
+              className="check-button"
+            >
+              {loading ? "Анализ жүруде..." : "Мәтінді тексеру"}
+            </button>
+            
+            <button 
+              onClick={() => {
+                setShowHistory(!showHistory);
+                if (!showHistory) fetchHistory();
+              }} 
+              className="history-button"
+            >
+              {showHistory ? "Жабу" : "Тарихты көру"}
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -259,17 +295,20 @@ function App() {
           <div className="history-section">
             <div className="history-header">
               <h3>Тексеру тарихы</h3>
-              <button onClick={() => setShowHistory(false)}>✖</button>
+              <button onClick={() => setShowHistory(false)} className="close-btn">✖</button>
             </div>
             {history.length === 0 ? (
-              <p>Әзірге тексерулер жоқ</p>
+              <p className="no-history">Әзірге тексерулер жоқ</p>
             ) : (
               <div className="history-list">
                 {history.map((item, idx) => (
                   <div key={idx} className={`history-item ${item.result.toxic ? 'toxic' : 'safe'}`}>
-                    <div className="history-text">{item.text.substring(0, 100)}...</div>
+                    <div className="history-text">{item.text.length > 100 ? item.text.substring(0, 100) + '...' : item.text}</div>
                     <div className="history-result">
-                      {item.result.toxic ? "Уытты" : "Қауіпсіз"} ({Math.round(item.result.score * 100)}%)
+                      <span className={`badge ${item.result.toxic ? 'toxic-badge' : 'safe-badge'}`}>
+                        {item.result.toxic ? "Уытты" : "Қауіпсіз"}
+                      </span>
+                      <span className="score">({Math.round(item.result.score * 100)}%)</span>
                     </div>
                     <div className="history-date">{new Date(item.createdAt).toLocaleString()}</div>
                   </div>
@@ -317,7 +356,7 @@ function App() {
                     </span>
                   </div>
                   <div className="detail-item">
-                    <span>Бағымсыз сөздер:</span>
+                    <span>Былапыт сөздер:</span>
                     <span style={{color: getScoreColor(result.details.obscenity)}}>
                       {Math.round(result.details.obscenity * 100)}%
                     </span>
@@ -342,7 +381,7 @@ function App() {
       </main>
 
       <footer className="footer">
-        <p>Қолданылған модель rubert-tiny-toxicity (Apache 2.0)</p>
+        <p>Қолданылған модель: rubert-tiny-toxicity (Apache 2.0)</p>
         <p>© 2026 Smart Toxicity Detector</p>
       </footer>
     </div>
