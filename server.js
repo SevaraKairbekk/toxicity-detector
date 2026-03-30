@@ -36,8 +36,6 @@ const TIMEOUT_MS = 30000;
 
 // Подключение к MongoDB с улучшенными настройками
 mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
 })
