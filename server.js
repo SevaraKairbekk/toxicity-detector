@@ -287,6 +287,7 @@ if (bot) {
     // Обработка текстовых сообщений в группах
     bot.on('text', async (ctx) => {
         const message = ctx.message;
+	console.log(`[DEBUG] Получено сообщение от ${message.from.username || message.from.first_name}: ${message.text}`);
         if (message.from.is_bot) return;
         // Работаем только в группах и супергруппах
         if (message.chat.type !== 'group' && message.chat.type !== 'supergroup') return;
