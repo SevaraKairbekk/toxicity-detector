@@ -19,7 +19,6 @@ const TIMEOUT_MS = 30000;
 
 // Telegram
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const WEBHOOK_PATH = process.env.TELEGRAM_WEBHOOK_PATH || "/webhook";
 
 // =================== MIDDLEWARES ===================
 app.use(cors({
@@ -36,7 +35,7 @@ app.use(express.json({ limit: '10mb' }));
 const requiredEnvVars = ['HF_TOKEN', 'MONGODB_URI', 'JWT_SECRET'];
 requiredEnvVars.forEach(varName => {
   if (!process.env[varName]) {
-    console.error(` ${varName} не установлен в переменных окружения!`);
+    console.error(`❌ ${varName} не установлен в переменных окружения!`);
   }
 });
 
@@ -45,8 +44,8 @@ mongoose.connect(MONGODB_URI, {
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
 })
-.then(() => console.log(" MongoDB подключена успешно"))
-.catch(err => console.error(" Ошибка подключения к MongoDB:", err.message));
+.then(() => console.log("✅ MongoDB подключена успешно"))
+.catch(err => console.error("❌ Ошибка подключения к MongoDB:", err.message));
 
 mongoose.connection.on('error', err => console.error('MongoDB connection error:', err));
 mongoose.connection.on('disconnected', () => console.log('MongoDB отключена'));
@@ -67,8 +66,17 @@ const historySchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
+// Схема для хранения предупреждений Telegram-пользователей
+const warningSchema = new mongoose.Schema({
+    userId: { type: Number, required: true },      // Telegram user id
+    chatId: { type: Number, required: true },      // Group id
+    count: { type: Number, default: 1 },
+    lastWarningDate: { type: Date, default: Date.now }
+});
+
 const User = mongoose.model("User", userSchema);
 const History = mongoose.model("History", historySchema);
+const Warning = mongoose.model("Warning", warningSchema);
 
 // =================== MIDDLEWARE АУТЕНТИФИКАЦИИ ===================
 const authenticateToken = (req, res, next) => {
@@ -250,18 +258,23 @@ app.get("/health", (req, res) => {
 });
 
 // =================== ОТДАЧА СТАТИКИ REACT ===================
-app.use(express.static(path.join(__dirname, 'client/build')));
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
-});
+// Если фронтенд собран, раздаём статику
+if (require('fs').existsSync(path.join(__dirname, 'client/build'))) {
+    app.use(express.static(path.join(__dirname, 'client/build')));
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
+    });
+} else {
+    console.log("⚠️ Папка client/build не найдена. Фронтенд не будет отдаваться.");
+}
 
 // =================== TELEGRAM БОТ (МОДЕРАТОР ГРУПП) ===================
 let bot = null;
 if (BOT_TOKEN) {
     bot = new Telegraf(BOT_TOKEN);
-    console.log(" Telegram бот инициализирован");
+    console.log("🤖 Telegram бот инициализирован");
 } else {
-    console.warn(" TELEGRAM_BOT_TOKEN не задан. Бот не будет работать.");
+    console.warn("⚠️ TELEGRAM_BOT_TOKEN не задан. Бот не будет работать.");
 }
 
 // Функция для проверки токсичности через внутренний API
@@ -283,54 +296,111 @@ async function checkTextToxicity(text) {
     }
 }
 
+// Логика модерации
+const WARNING_THRESHOLD = 3; // после скольких предупреждений исключать
+
 if (bot) {
-    // Обработка текстовых сообщений в группах
+    // Обработка текстовых сообщений в группах и супергруппах
     bot.on('text', async (ctx) => {
         const message = ctx.message;
-	console.log(`[DEBUG] Получено сообщение от ${message.from.username || message.from.first_name}: ${message.text}`);
+        // Игнорируем сообщения от ботов
         if (message.from.is_bot) return;
         // Работаем только в группах и супергруппах
         if (message.chat.type !== 'group' && message.chat.type !== 'supergroup') return;
-        console.log(`[Группа ${message.chat.id}] Сообщение от ${message.from.username || message.from.first_name}: ${message.text.substring(0, 50)}`);
-        const result = await checkTextToxicity(message.text);
-        if (result && result.toxic) {
-            const warning = ` Внимание, ${message.from.first_name || 'участник'}! Ваше сообщение признано токсичным (уверенность ${Math.round(result.score * 100)}%).\nПричина: ${result.reason}`;
-            await ctx.reply(warning, { reply_to_message_id: message.message_id });
-            // Раскомментируйте следующую строку, если бот имеет право удалять сообщения
-            // await ctx.deleteMessage(message.message_id);
+
+        const userId = message.from.id;
+        const chatId = message.chat.id;
+        const username = message.from.username || message.from.first_name;
+        const text = message.text;
+
+        console.log(`[Группа ${chatId}] Сообщение от ${username}: ${text.substring(0, 50)}`);
+
+        // Проверка токсичности
+        const result = await checkTextToxicity(text);
+        if (!result || !result.toxic) return;
+
+        const toxicPercent = Math.round(result.score * 100);
+        const reason = result.reason;
+
+        // Увеличиваем счётчик предупреждений для этого пользователя в этой группе
+        let warning = await Warning.findOne({ userId, chatId });
+        if (warning) {
+            warning.count += 1;
+            warning.lastWarningDate = new Date();
+            await warning.save();
+        } else {
+            warning = await Warning.create({ userId, chatId, count: 1 });
+        }
+
+        if (warning.count >= WARNING_THRESHOLD) {
+            // Исключаем пользователя из группы
+            try {
+                await ctx.telegram.kickChatMember(chatId, userId);
+                await ctx.reply(`🚫 Пользователь ${username} был исключён из группы за ${WARNING_THRESHOLD} токсичных сообщений. Для восстановления обратитесь к администратору.`);
+                // Удаляем предупреждения для этого пользователя (или можно оставить для истории)
+                await Warning.deleteOne({ userId, chatId });
+                console.log(`[Группа ${chatId}] Пользователь ${username} исключён (${warning.count} нарушений)`);
+            } catch (err) {
+                console.error(`Не удалось исключить ${userId}:`, err.message);
+                await ctx.reply(`⚠️ Не удалось исключить пользователя ${username}. Убедитесь, что бот имеет право "Блокировка пользователей".`);
+            }
+        } else {
+            // Отправляем предупреждение
+            const warningMsg = `⚠️ Внимание, ${username}! Ваше сообщение признано токсичным (уровень токсичности ${toxicPercent}%).\nПричина: ${reason}\nЭто предупреждение ${warning.count} из ${WARNING_THRESHOLD}. Воздержитесь от токсичных сообщений.`;
+            await ctx.reply(warningMsg, { reply_to_message_id: message.message_id });
+            console.log(`[Группа ${chatId}] Пользователь ${username} получил предупреждение ${warning.count}/${WARNING_THRESHOLD}`);
         }
     });
 
-    // Настройка webhook (будет вызвано после запуска сервера)
-    bot.telegram.setWebhook = bot.telegram.setWebhook.bind(bot.telegram);
+    // Дополнительно: команда для сброса предупреждений (только для администраторов)
+    bot.command('reset_warnings', async (ctx) => {
+        if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
+        const member = await ctx.getChatMember(ctx.from.id);
+        if (member.status !== 'administrator' && member.status !== 'creator') {
+            return ctx.reply('Эта команда доступна только администраторам.');
+        }
+        // Используем reply_to_message: администратор отвечает на сообщение нарушителя
+        if (!ctx.message.reply_to_message) {
+            return ctx.reply('Ответьте на сообщение пользователя, которому хотите сбросить предупреждения.');
+        }
+        const targetUserId = ctx.message.reply_to_message.from.id;
+        const targetUsername = ctx.message.reply_to_message.from.username || ctx.message.reply_to_message.from.first_name;
+        const deleted = await Warning.deleteOne({ userId: targetUserId, chatId: ctx.chat.id });
+        if (deleted.deletedCount > 0) {
+            await ctx.reply(`✅ Предупреждения для пользователя ${targetUsername} сброшены.`);
+        } else {
+            await ctx.reply(`ℹ️ У пользователя ${targetUsername} не было активных предупреждений.`);
+        }
+    });
 }
 
-// =================== ЗАПУСК СЕРВЕРА И УСТАНОВКА WEBHOOK ===================
-const startServer = async () => {
-    app.listen(PORT, '0.0.0.0', async () => {
-        console.log(` Сервер запущен на порту ${PORT}`);
-        console.log(` Модель: ${MODEL_NAME}`);
-        console.log(` HF_TOKEN: ${HF_TOKEN ? 'Установлен' : 'Не установлен'}`);
-        console.log(` MongoDB: ${MONGODB_URI ? 'URL указан' : 'Не указан'}`);
-        console.log(` JWT_SECRET: ${JWT_SECRET !== "default_secret_change_this_in_production" ? 'Установлен' : 'Используется дефолтный'}`);
-        
-        if (bot && process.env.RENDER_EXTERNAL_URL) {
-            const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}${WEBHOOK_PATH}`;
-            try {
-                await bot.telegram.setWebhook(webhookUrl);
-                console.log(` Webhook для Telegram установлен: ${webhookUrl}`);
-            } catch (err) {
-                console.error(' Ошибка установки webhook:', err.message);
-            }
-        } else if (bot) {
-            console.warn(' RENDER_EXTERNAL_URL не задан. Webhook не установлен автоматически.');
-        }
-    });
-};
+// =================== ЗАПУСК СЕРВЕРА И ТЕЛЕГРАМ БОТА ===================
+// Запускаем HTTP-сервер для API и фронтенда
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Сервер запущен на порту ${PORT}`);
+    console.log(`📊 Модель: ${MODEL_NAME}`);
+    console.log(`🔑 HF_TOKEN: ${HF_TOKEN ? 'Установлен' : 'Не установлен'}`);
+    console.log(`🍃 MongoDB: ${MONGODB_URI ? 'URL указан' : 'Не указан'}`);
+    console.log(`🔐 JWT_SECRET: ${JWT_SECRET !== "default_secret_change_this_in_production" ? 'Установлен' : 'Используется дефолтный'}`);
+});
 
-startServer();
+// Запускаем Telegram бота в режиме polling (без webhook)
+if (bot) {
+    bot.launch();
+    console.log("🤖 Telegram бот запущен в режиме polling (ожидание сообщений)");
+}
 
-// Глобальный обработчик ошибок
+// Корректное завершение работы
+process.once('SIGINT', () => {
+    bot?.stop('SIGINT');
+    process.exit(0);
+});
+process.once('SIGTERM', () => {
+    bot?.stop('SIGTERM');
+    process.exit(0);
+});
+
+// Глобальный обработчик ошибок (должен быть после всех middleware)
 app.use((err, req, res, next) => {
     console.error("Глобальная ошибка:", err);
     res.status(500).json({ error: "Внутренняя ошибка сервера" });
