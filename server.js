@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const path = require("path");
+const fs = require("fs");
 const { Telegraf } = require("telegraf");
 
 const app = express();
@@ -218,8 +219,13 @@ app.post("/check", authenticateToken, async (req, res) => {
         else if (nonToxic < 0.7) reason = "Мәтінде токсинді элементтер бар";
         else reason = "Мәтін қауіпсіз";
         const result = { toxic: isToxic, score: toxicScore, reason, details: { non_toxic: nonToxic, insult, obscenity, threat, dangerous } };
-        await History.create({ userId: req.user.userId, text, result });
-        await User.findByIdAndUpdate(req.user.userId, { $inc: { checksCount: 1 } });
+        
+        // Сохраняем историю ТОЛЬКО если есть авторизованный пользователь (не бот)
+        if (req.user) {
+            await History.create({ userId: req.user.userId, text, result });
+            await User.findByIdAndUpdate(req.user.userId, { $inc: { checksCount: 1 } });
+        }
+        
         console.log("Проверка завершена, токсично:", isToxic);
         res.json(result);
     } catch (error) {
@@ -258,23 +264,23 @@ app.get("/health", (req, res) => {
 });
 
 // =================== ОТДАЧА СТАТИКИ REACT ===================
-// Если фронтенд собран, раздаём статику
-if (require('fs').existsSync(path.join(__dirname, 'client/build'))) {
-    app.use(express.static(path.join(__dirname, 'client/build')));
+const buildPath = path.join(__dirname, 'client/build');
+if (fs.existsSync(buildPath)) {
+    app.use(express.static(buildPath));
     app.get('*', (req, res) => {
-        res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
+        res.sendFile(path.join(buildPath, 'index.html'));
     });
 } else {
-    console.log("⚠️ Папка client/build не найдена. Фронтенд не будет отдаваться.");
+    console.log(" Папка client/build не найдена. Фронтенд не будет отдаваться.");
 }
 
 // =================== TELEGRAM БОТ (МОДЕРАТОР ГРУПП) ===================
 let bot = null;
 if (BOT_TOKEN) {
     bot = new Telegraf(BOT_TOKEN);
-    console.log("🤖 Telegram бот инициализирован");
+    console.log(" Telegram бот инициализирован");
 } else {
-    console.warn("⚠️ TELEGRAM_BOT_TOKEN не задан. Бот не будет работать.");
+    console.warn(" TELEGRAM_BOT_TOKEN не задан. Бот не будет работать.");
 }
 
 // Функция для проверки токсичности через внутренний API
@@ -296,7 +302,6 @@ async function checkTextToxicity(text) {
     }
 }
 
-// Логика модерации
 const WARNING_THRESHOLD = 3; // после скольких предупреждений исключать
 
 if (bot) {
@@ -336,30 +341,29 @@ if (bot) {
             // Исключаем пользователя из группы
             try {
                 await ctx.telegram.kickChatMember(chatId, userId);
-                await ctx.reply(`🚫 Пользователь ${username} был исключён из группы за ${WARNING_THRESHOLD} токсичных сообщений. Для восстановления обратитесь к администратору.`);
-                // Удаляем предупреждения для этого пользователя (или можно оставить для истории)
+                await ctx.reply(` Пользователь ${username} был исключён из группы за ${WARNING_THRESHOLD} токсичных сообщений. Для восстановления обратитесь к администратору.`);
+                // Удаляем предупреждения для этого пользователя
                 await Warning.deleteOne({ userId, chatId });
                 console.log(`[Группа ${chatId}] Пользователь ${username} исключён (${warning.count} нарушений)`);
             } catch (err) {
                 console.error(`Не удалось исключить ${userId}:`, err.message);
-                await ctx.reply(`⚠️ Не удалось исключить пользователя ${username}. Убедитесь, что бот имеет право "Блокировка пользователей".`);
+                await ctx.reply(` Не удалось исключить пользователя ${username}. Убедитесь, что бот имеет право "Блокировка пользователей".`);
             }
         } else {
             // Отправляем предупреждение
-            const warningMsg = `⚠️ Внимание, ${username}! Ваше сообщение признано токсичным (уровень токсичности ${toxicPercent}%).\nПричина: ${reason}\nЭто предупреждение ${warning.count} из ${WARNING_THRESHOLD}. Воздержитесь от токсичных сообщений.`;
+            const warningMsg = ` Внимание, ${username}! Ваше сообщение признано токсичным (уровень токсичности ${toxicPercent}%).\nПричина: ${reason}\nЭто предупреждение ${warning.count} из ${WARNING_THRESHOLD}. Воздержитесь от токсичных сообщений.`;
             await ctx.reply(warningMsg, { reply_to_message_id: message.message_id });
             console.log(`[Группа ${chatId}] Пользователь ${username} получил предупреждение ${warning.count}/${WARNING_THRESHOLD}`);
         }
     });
 
-    // Дополнительно: команда для сброса предупреждений (только для администраторов)
+    // Команда для сброса предупреждений (только для администраторов, ответом на сообщение)
     bot.command('reset_warnings', async (ctx) => {
         if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
         const member = await ctx.getChatMember(ctx.from.id);
         if (member.status !== 'administrator' && member.status !== 'creator') {
             return ctx.reply('Эта команда доступна только администраторам.');
         }
-        // Используем reply_to_message: администратор отвечает на сообщение нарушителя
         if (!ctx.message.reply_to_message) {
             return ctx.reply('Ответьте на сообщение пользователя, которому хотите сбросить предупреждения.');
         }
@@ -367,9 +371,9 @@ if (bot) {
         const targetUsername = ctx.message.reply_to_message.from.username || ctx.message.reply_to_message.from.first_name;
         const deleted = await Warning.deleteOne({ userId: targetUserId, chatId: ctx.chat.id });
         if (deleted.deletedCount > 0) {
-            await ctx.reply(`✅ Предупреждения для пользователя ${targetUsername} сброшены.`);
+            await ctx.reply(` Предупреждения для пользователя ${targetUsername} сброшены.`);
         } else {
-            await ctx.reply(`ℹ️ У пользователя ${targetUsername} не было активных предупреждений.`);
+            await ctx.reply(` У пользователя ${targetUsername} не было активных предупреждений.`);
         }
     });
 }
