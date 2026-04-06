@@ -306,7 +306,7 @@ if (bot) {
 
 // =================== ЗАПУСК СЕРВЕРА И УСТАНОВКА WEBHOOK ===================
 const startServer = async () => {
-    app.listen(PORT, async () => {
+    app.listen(PORT, '0.0.0.0', async () => {
         console.log(` Сервер запущен на порту ${PORT}`);
         console.log(` Модель: ${MODEL_NAME}`);
         console.log(` HF_TOKEN: ${HF_TOKEN ? 'Установлен' : 'Не установлен'}`);
