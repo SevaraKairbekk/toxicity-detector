@@ -308,9 +308,7 @@ if (bot) {
     // Обработка текстовых сообщений в группах и супергруппах
     bot.on('text', async (ctx) => {
         const message = ctx.message;
-        // Игнорируем сообщения от ботов
         if (message.from.is_bot) return;
-        // Работаем только в группах и супергруппах
         if (message.chat.type !== 'group' && message.chat.type !== 'supergroup') return;
 
         const userId = message.from.id;
@@ -320,14 +318,12 @@ if (bot) {
 
         console.log(`[Группа ${chatId}] Сообщение от ${username}: ${text.substring(0, 50)}`);
 
-        // Проверка токсичности
         const result = await checkTextToxicity(text);
         if (!result || !result.toxic) return;
 
         const toxicPercent = Math.round(result.score * 100);
         const reason = result.reason;
 
-        // Увеличиваем счётчик предупреждений для этого пользователя в этой группе
         let warning = await Warning.findOne({ userId, chatId });
         if (warning) {
             warning.count += 1;
@@ -338,46 +334,42 @@ if (bot) {
         }
 
         if (warning.count >= WARNING_THRESHOLD) {
-            // Исключаем пользователя из группы
             try {
                 await ctx.telegram.kickChatMember(chatId, userId);
-                await ctx.reply(` Пользователь ${username} был исключён из группы за ${WARNING_THRESHOLD} токсичных сообщений. Для восстановления обратитесь к администратору.`);
-                // Удаляем предупреждения для этого пользователя
+                await ctx.reply(` ${username} пайдаланушысы ${WARNING_THRESHOLD} уытты хабарлама жібергені үшін топтан шығарылды. Қайта қосылу үшін әкімшіге хабарласыңыз.`);
                 await Warning.deleteOne({ userId, chatId });
-                console.log(`[Группа ${chatId}] Пользователь ${username} исключён (${warning.count} нарушений)`);
+                console.log(`[Группа ${chatId}] Пайдаланушы ${username} шығарылды (${warning.count} бұзушылық)`);
             } catch (err) {
-                console.error(`Не удалось исключить ${userId}:`, err.message);
-                await ctx.reply(` Не удалось исключить пользователя ${username}. Убедитесь, что бот имеет право "Блокировка пользователей".`);
+                console.error(`Шығару мүмкін болмады ${userId}:`, err.message);
+                await ctx.reply(` ${username} пайдаланушысын шығару мүмкін болмады. Боттың «Пайдаланушыларды бұғаттау» құқығы бар екеніне көз жеткізіңіз.`);
             }
         } else {
-            // Отправляем предупреждение
-            const warningMsg = ` Внимание, ${username}! Ваше сообщение признано токсичным (уровень токсичности ${toxicPercent}%).\nПричина: ${reason}\nЭто предупреждение ${warning.count} из ${WARNING_THRESHOLD}. Воздержитесь от токсичных сообщений.`;
+            const warningMsg = ` Назар аударыңыз, ${username}! Сіздің хабарламаңыз уытты деп танылды (уыттылық деңгейі ${toxicPercent}%).\nСебебі: ${reason}\nБұл ескерту ${warning.count}/${WARNING_THRESHOLD}. Уытты хабарламалар жібермеуге тырысыңыз.`;
             await ctx.reply(warningMsg, { reply_to_message_id: message.message_id });
-            console.log(`[Группа ${chatId}] Пользователь ${username} получил предупреждение ${warning.count}/${WARNING_THRESHOLD}`);
+            console.log(`[Группа ${chatId}] Пайдаланушы ${username} ескерту алды ${warning.count}/${WARNING_THRESHOLD}`);
         }
     });
 
-    // Команда для сброса предупреждений (только для администраторов, ответом на сообщение)
+    // Команда для сброса предупреждений (только администраторы)
     bot.command('reset_warnings', async (ctx) => {
         if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
         const member = await ctx.getChatMember(ctx.from.id);
         if (member.status !== 'administrator' && member.status !== 'creator') {
-            return ctx.reply('Эта команда доступна только администраторам.');
+            return ctx.reply('Бұл команда тек әкімшілерге қолжетімді.');
         }
         if (!ctx.message.reply_to_message) {
-            return ctx.reply('Ответьте на сообщение пользователя, которому хотите сбросить предупреждения.');
+            return ctx.reply('Ескертулерді қалпына келтіргіңіз келетін пайдаланушының хабарына жауап беріңіз.');
         }
         const targetUserId = ctx.message.reply_to_message.from.id;
         const targetUsername = ctx.message.reply_to_message.from.username || ctx.message.reply_to_message.from.first_name;
         const deleted = await Warning.deleteOne({ userId: targetUserId, chatId: ctx.chat.id });
         if (deleted.deletedCount > 0) {
-            await ctx.reply(` Предупреждения для пользователя ${targetUsername} сброшены.`);
+            await ctx.reply(` ${targetUsername} пайдаланушысының ескертулері қалпына келтірілді.`);
         } else {
-            await ctx.reply(` У пользователя ${targetUsername} не было активных предупреждений.`);
+            await ctx.reply(` ${targetUsername} пайдаланушысында белсенді ескертулер жоқ.`);
         }
     });
 }
-
 // =================== ЗАПУСК СЕРВЕРА И ТЕЛЕГРАМ БОТА ===================
 // Запускаем HTTP-сервер для API и фронтенда
 app.listen(PORT, '0.0.0.0', () => {
