@@ -24,3 +24,4 @@ client/node_modules/
 .DS_Store
 Thumbs.db
 "@ | Add-Content -Path .gitignore -Encoding utf8
+"data/toxic-words-full.json" 
