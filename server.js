@@ -74,7 +74,6 @@ const toxicWordSchema = new mongoose.Schema({
     reputation: Number,
     danger: Number
 });
-toxicWordSchema.index({ word: 1 });
 
 const User = mongoose.model("User", userSchema);
 const History = mongoose.model("History", historySchema);
