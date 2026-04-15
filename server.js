@@ -85,9 +85,9 @@ const authenticateToken = (req, res, next) => {
     if (req.headers['x-internal-request'] === 'true') return next();
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
-    if (!token) return res.status(401).json({ error: "Қодану үшін жүйеге кіріңіз" });
+    if (!token) return res.status(401).json({ error: "Қатынау үшін жүйеге кіріңіз" });
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ error: "Токен жарамсыз, кайта кіріңіз" });
+        if (err) return res.status(403).json({ error: "Токен жарамсыз, қайта кіріңіз" });
         req.user = user;
         next();
     });
@@ -99,11 +99,13 @@ async function analyzeTextWithDatabase(text) {
     const words = normalizedText.split(/\s+/);
     let foundWords = [];
 
+    // Поиск отдельных слов
     for (const word of words) {
         const found = await ToxicWord.findOne({ word: word });
         if (found) foundWords.push(found);
     }
 
+    // Поиск фраз (содержащих пробелы)
     const allPhrases = await ToxicWord.find({});
     for (const phrase of allPhrases) {
         if (phrase.word.includes(' ') && normalizedText.includes(phrase.word)) {
@@ -133,13 +135,13 @@ async function analyzeTextWithDatabase(text) {
     const toxicScore = maxScores.toxic;
     const isToxic = toxicScore > 0.5;
     let reason = "";
-    if (maxScores.danger > 0.7) reason = "Өте кауіпті: мәтін беделге нұқсан келтіруі мүмкін";
+    if (maxScores.danger > 0.7) reason = "Өте қауіпті: мәтін беделге нұқсан келтіруі мүмкін";
     else if (maxScores.danger > 0.5) reason = "Жоғары тәуекел: беделге ықтимал зиян";
-    else if (maxScores.insult > 0.7) reason = "Айкын қорлау";
+    else if (maxScores.insult > 0.7) reason = "Айқын қорлау";
     else if (maxScores.insult > 0.5) reason = "Жасырын қорлау немесе менсінбеушілік";
     else if (maxScores.rudeness > 0.7) reason = "Дөрекі сөздер";
     else if (maxScores.obscenity > 0.5) reason = "Былапыт сөздер";
-    else if (maxScores.toxic > 0.5) reason = "Мәтінде токсиндi элементтер бар";
+    else if (maxScores.toxic > 0.5) reason = "Мәтінде токсинді элементтер бар";
     else reason = "Мәтін қауіпсіз";
 
     return {
@@ -161,7 +163,7 @@ async function analyzeTextWithDatabase(text) {
 // =================== API ЭНДПОЙНТЫ ===================
 app.post("/api/register", async (req, res) => {
     const { username, email, password } = req.body;
-    if (!username || !email || !password) return res.status(400).json({ error: "Барлық өрістерди толтырыңыз" });
+    if (!username || !email || !password) return res.status(400).json({ error: "Барлық өрістерді толтырыңыз" });
     if (username.length < 3) return res.status(400).json({ error: "Пайдаланушы аты кемінде 3 символ болуы керек" });
     if (password.length < 6) return res.status(400).json({ error: "Құпия сөз кемінде 6 символ болуы керек" });
     try {
@@ -173,7 +175,7 @@ app.post("/api/register", async (req, res) => {
         const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: { id: user._id, username: user.username, email: user.email } });
     } catch (error) {
-        res.status(500).json({ error: "Сервер катесi: " + error.message });
+        res.status(500).json({ error: "Сервер қатесі: " + error.message });
     }
 });
 
@@ -184,18 +186,18 @@ app.post("/api/login", async (req, res) => {
         const user = await User.findOne({ username });
         if (!user) return res.status(400).json({ error: "Пайдаланушы табылмады" });
         const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) return res.status(400).json({ error: "Купия соз кате" });
+        if (!validPassword) return res.status(400).json({ error: "Құпия сөз қате" });
         const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
         res.json({ token, user: { id: user._id, username: user.username, email: user.email } });
     } catch (error) {
-        res.status(500).json({ error: "Сервер қатесi: " + error.message });
+        res.status(500).json({ error: "Сервер қатесі: " + error.message });
     }
 });
 
 app.post("/check", authenticateToken, async (req, res) => {
     const { text } = req.body;
     if (!text || text.trim().length === 0) {
-        return res.status(400).json({ error: "Мәтіндi енгізіңіз", toxic: false, score: 0, reason: "Мәтіндi енгізіңіз" });
+        return res.status(400).json({ error: "Мәтінді енгізіңіз", toxic: false, score: 0, reason: "Мәтінді енгізіңіз" });
     }
     try {
         const result = await analyzeTextWithDatabase(text);
@@ -205,7 +207,7 @@ app.post("/check", authenticateToken, async (req, res) => {
         }
         res.json(result);
     } catch (error) {
-        res.status(500).json({ error: "Сервер катесi: " + error.message, toxic: false, score: 0, reason: "Мәтіндi тексеру мүмкін болмады" });
+        res.status(500).json({ error: "Сервер қатесі: " + error.message, toxic: false, score: 0, reason: "Мәтінді тексеру мүмкін болмады" });
     }
 });
 
@@ -303,10 +305,10 @@ if (bot) {
                 await Warning.deleteOne({ userId, chatId });
             } catch (err) {
                 console.error(`Шығару мүмкін болмады ${userId}:`, err.message);
-                await ctx.reply(`${username} пайдаланушысын шығару мүмкін болмады. Боттын «Пайдаланушыларды буғаттау» құқығы бар екеніне көз жеткізіңіз.`);
+                await ctx.reply(`${username} пайдаланушысын шығару мүмкін болмады. Боттың «Пайдаланушыларды бұғаттау» құқығы бар екеніне көз жеткізіңіз.`);
             }
         } else {
-            await ctx.reply(`Назар аударыныз, ${username}! Сiздiн хабарламаныз уытты деп танылды (уыттылык деңгейi ${toxicPercent}%).\nСебебi: ${reason}\nБул ескерту ${warning.count}/${WARNING_THRESHOLD}. Уытты хабарламалар жібермеуге тырысыңыз.`, { reply_to_message_id: message.message_id });
+            await ctx.reply(`Назар аударыңыз, ${username}! Сіздің хабарламаңыз уытты деп танылды (уыттылық деңгейі ${toxicPercent}%).\nСебебі: ${reason}\nБұл ескерту ${warning.count}/${WARNING_THRESHOLD}. Уытты хабарламалар жібермеуге тырысыңыз.`, { reply_to_message_id: message.message_id });
         }
     });
 
@@ -314,18 +316,18 @@ if (bot) {
         if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
         const member = await ctx.getChatMember(ctx.from.id);
         if (member.status !== 'administrator' && member.status !== 'creator') {
-            return ctx.reply('Бұл команда тек әкімшілікке колжетімдi.');
+            return ctx.reply('Бұл команда тек әкімшілікке қолжетімді.');
         }
         if (!ctx.message.reply_to_message) {
-            return ctx.reply('Пайдаланушынын хабарына жауап беріңіз.');
+            return ctx.reply('Пайдаланушының хабарына жауап беріңіз.');
         }
         const targetUserId = ctx.message.reply_to_message.from.id;
         const targetUsername = ctx.message.reply_to_message.from.username || ctx.message.reply_to_message.from.first_name;
         const deleted = await Warning.deleteOne({ userId: targetUserId, chatId: ctx.chat.id });
         if (deleted.deletedCount > 0) {
-            await ctx.reply(`${targetUsername} пайдаланушысының деректері калпына келтiрiлдi.`);
+            await ctx.reply(`${targetUsername} пайдаланушысының деректері қалпына келтірілді.`);
         } else {
-            await ctx.reply(`${targetUsername} пайдаланушысында белсендi ескертулер жок.`);
+            await ctx.reply(`${targetUsername} пайдаланушысында белсенді ескертулер жоқ.`);
         }
     });
 }

@@ -1,6 +1,6 @@
 [
   {"word": "оңбаған", "meaning": "Қасиетсіз, жаман адам", "toxic": 0.7, "insult": 0.65, "obscenity": 0.15, "rudeness": 0.6, "reputation": 0.55, "danger": 0.3},
-  {"word": "нақұрыс", "meaning": "Ақылы кем, санасыз", "toxic": 0.85, "insult": 0.9, "obscenity": 0.4, "rudeness": 0.85, "reputation": 0.7, "danger": 0.45},
+  {"word": "нақұрыс", "meaning": "Ақылы кем,санасыз", "toxic": 0.85, "insult": 0.9, "obscenity": 0.4, "rudeness": 0.85, "reputation": 0.7, "danger": 0.45},
   {"word": "арамтамақ", "meaning": "Еңбексіз дайынға үйір", "toxic": 0.8, "insult": 0.75, "obscenity": 0.2, "rudeness": 0.75, "reputation": 0.85, "danger": 0.25},
   {"word": "екіжүзді", "meaning": "Арам ойлы, жалғаншы", "toxic": 0.9, "insult": 0.7, "obscenity": 0.05, "rudeness": 0.55, "reputation": 0.95, "danger": 0.5},
   {"word": "мал", "meaning": "Санасыз, мәдениетсіз адам", "toxic": 0.95, "insult": 1.0, "obscenity": 0.8, "rudeness": 1.0, "reputation": 0.85, "danger": 0.8},
