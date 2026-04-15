@@ -67,12 +67,12 @@ const warningSchema = new mongoose.Schema({
 const toxicWordSchema = new mongoose.Schema({
     word: { type: String, required: true, unique: true },
     meaning: String,
-    toxic: Number,
-    insult: Number,
-    obscenity: Number,
-    rudeness: Number,
-    reputation: Number,
-    danger: Number
+    toxic: { type: Number, default: 0 },
+    insult: { type: Number, default: 0 },
+    obscenity: { type: Number, default: 0 },
+    rudeness: { type: Number, default: 0 },
+    reputation: { type: Number, default: 0 },
+    danger: { type: Number, default: 0 }
 });
 
 const User = mongoose.model("User", userSchema);
@@ -99,13 +99,11 @@ async function analyzeTextWithDatabase(text) {
     const words = normalizedText.split(/\s+/);
     let foundWords = [];
 
-    // Поиск отдельных слов
     for (const word of words) {
         const found = await ToxicWord.findOne({ word: word });
         if (found) foundWords.push(found);
     }
 
-    // Поиск фраз (содержащих пробелы)
     const allPhrases = await ToxicWord.find({});
     for (const phrase of allPhrases) {
         if (phrase.word.includes(' ') && normalizedText.includes(phrase.word)) {
@@ -124,12 +122,13 @@ async function analyzeTextWithDatabase(text) {
 
     const maxScores = { toxic: 0, insult: 0, obscenity: 0, rudeness: 0, reputation: 0, danger: 0 };
     for (const word of foundWords) {
-        maxScores.toxic = Math.max(maxScores.toxic, word.toxic);
-        maxScores.insult = Math.max(maxScores.insult, word.insult);
-        maxScores.obscenity = Math.max(maxScores.obscenity, word.obscenity);
-        maxScores.rudeness = Math.max(maxScores.rudeness, word.rudeness);
-        maxScores.reputation = Math.max(maxScores.reputation, word.reputation);
-        maxScores.danger = Math.max(maxScores.danger, word.danger);
+        // Принудительное преобразование в число, защита от null/undefined
+        maxScores.toxic = Math.max(maxScores.toxic, Number(word.toxic) || 0);
+        maxScores.insult = Math.max(maxScores.insult, Number(word.insult) || 0);
+        maxScores.obscenity = Math.max(maxScores.obscenity, Number(word.obscenity) || 0);
+        maxScores.rudeness = Math.max(maxScores.rudeness, Number(word.rudeness) || 0);
+        maxScores.reputation = Math.max(maxScores.reputation, Number(word.reputation) || 0);
+        maxScores.danger = Math.max(maxScores.danger, Number(word.danger) || 0);
     }
 
     const toxicScore = maxScores.toxic;
@@ -149,12 +148,12 @@ async function analyzeTextWithDatabase(text) {
         score: toxicScore,
         reason: reason,
         details: {
-            toxic: maxScores.toxic * 100,
-            insult: maxScores.insult * 100,
-            obscenity: maxScores.obscenity * 100,
-            rudeness: maxScores.rudeness * 100,
-            reputation: maxScores.reputation * 100,
-            danger: maxScores.danger * 100
+            toxic: (maxScores.toxic * 100) || 0,
+            insult: (maxScores.insult * 100) || 0,
+            obscenity: (maxScores.obscenity * 100) || 0,
+            rudeness: (maxScores.rudeness * 100) || 0,
+            reputation: (maxScores.reputation * 100) || 0,
+            danger: (maxScores.danger * 100) || 0
         },
         found_words: foundWords.map(w => w.word)
     };
