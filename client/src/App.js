@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
 
-// API URL из переменной окружения
 const API_URL = "https://toxicity-detector-cbgc.onrender.com";
 
 function App() {
@@ -9,8 +8,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
-  // аутентификация
+
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [user, setUser] = useState(null);
   const [isLogin, setIsLogin] = useState(true);
@@ -21,19 +19,17 @@ function App() {
   const [stats, setStats] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Загрузка данных пользователя при входе
   useEffect(() => {
     if (token) {
       fetchUserData();
       fetchHistory();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const fetchUserData = async () => {
     try {
       const statsRes = await fetch(`${API_URL}/api/stats`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (statsRes.ok) {
         const statsData = await statsRes.json();
@@ -49,7 +45,7 @@ function App() {
   const fetchHistory = async () => {
     try {
       const response = await fetch(`${API_URL}/api/history`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -66,22 +62,17 @@ function App() {
     e.preventDefault();
     setAuthError("");
     setAuthLoading(true);
-    
     const endpoint = isLogin ? "/api/login" : "/api/register";
-    
     try {
-      const body = isLogin ? 
-        { username: authData.username, password: authData.password } :
-        authData;
-      
+      const body = isLogin
+        ? { username: authData.username, password: authData.password }
+        : authData;
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      
       const data = await response.json();
-      
       if (response.ok) {
         localStorage.setItem("token", data.token);
         setToken(data.token);
@@ -115,23 +106,19 @@ function App() {
       setError("Мәтінді енгізіңіз");
       return;
     }
-
     setLoading(true);
     setError("");
     setResult(null);
-
     try {
       const response = await fetch(`${API_URL}/check`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ text }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         if (response.status === 401) {
           handleLogout();
@@ -139,11 +126,9 @@ function App() {
         }
         throw new Error(data.error || "Тексерудегі қателік");
       }
-
       setResult(data);
       await fetchUserData();
       await fetchHistory();
-      
     } catch (error) {
       console.error("Қателік:", error);
       setError(error.message || "Серверге қосылу мүмкін болмады");
@@ -164,7 +149,6 @@ function App() {
     return "Жоғарғы деңгейдегі уыттылық";
   };
 
-  // Если не авторизован — показываем форму входа/регистрации
   if (!token) {
     return (
       <div className="App">
@@ -174,20 +158,25 @@ function App() {
         <main className="main">
           <div className="auth-container">
             <div className="auth-tabs">
-              <button 
-                className={isLogin ? "active" : ""} 
-                onClick={() => { setIsLogin(true); setAuthError(""); }}
+              <button
+                className={isLogin ? "active" : ""}
+                onClick={() => {
+                  setIsLogin(true);
+                  setAuthError("");
+                }}
               >
                 Кіру
               </button>
-              <button 
-                className={!isLogin ? "active" : ""} 
-                onClick={() => { setIsLogin(false); setAuthError(""); }}
+              <button
+                className={!isLogin ? "active" : ""}
+                onClick={() => {
+                  setIsLogin(false);
+                  setAuthError("");
+                }}
               >
                 Тіркелу
               </button>
             </div>
-            
             <form onSubmit={handleAuth} className="auth-form">
               <input
                 type="text"
@@ -216,7 +205,7 @@ function App() {
               />
               {authError && <div className="error-message">{authError}</div>}
               <button type="submit" disabled={authLoading}>
-                {authLoading ? "Күте тұрыңыз..." : (isLogin ? "Кіру" : "Тіркелу")}
+                {authLoading ? "Күте тұрыңыз..." : isLogin ? "Кіру" : "Тіркелу"}
               </button>
             </form>
           </div>
@@ -228,7 +217,6 @@ function App() {
     );
   }
 
-  // Основной интерфейс для авторизованных пользователей
   return (
     <div className="App">
       <header className="header">
@@ -236,7 +224,9 @@ function App() {
           <h1>Smart Toxicity Detector</h1>
           <div className="user-info">
             <span className="username">{user?.username}</span>
-            <button onClick={handleLogout} className="logout-btn">Шығу</button>
+            <button onClick={handleLogout} className="logout-btn">
+              Шығу
+            </button>
           </div>
         </div>
         {stats && (
@@ -257,26 +247,23 @@ function App() {
             placeholder="Мәтінді енгізіңіз..."
             className="text-input"
           />
-          
           <div className="stats">
             <span>Символдар: {text.length}</span>
-            <span>Сөздер: {text.trim().split(/\s+/).filter(w => w).length}</span>
+            <span>Сөздер: {text.trim().split(/\s+/).filter((w) => w).length}</span>
           </div>
-
           <div className="button-group">
-            <button 
-              onClick={checkToxicity} 
+            <button
+              onClick={checkToxicity}
               disabled={loading || !text.trim()}
               className="check-button"
             >
               {loading ? "Анализ жүруде..." : "Мәтінді тексеру"}
             </button>
-            
-            <button 
+            <button
               onClick={() => {
                 setShowHistory(!showHistory);
                 if (!showHistory) fetchHistory();
-              }} 
+              }}
               className="history-button"
             >
               {showHistory ? "Жабу" : "Тарихты көру"}
@@ -294,22 +281,33 @@ function App() {
           <div className="history-section">
             <div className="history-header">
               <h3>Тексеру тарихы</h3>
-              <button onClick={() => setShowHistory(false)} className="close-btn">✖</button>
+              <button onClick={() => setShowHistory(false)} className="close-btn">
+                ✖
+              </button>
             </div>
             {history.length === 0 ? (
               <p className="no-history">Әзірге тексерулер жоқ</p>
             ) : (
               <div className="history-list">
                 {history.map((item, idx) => (
-                  <div key={idx} className={`history-item ${item.result.toxic ? 'toxic' : 'safe'}`}>
-                    <div className="history-text">{item.text.length > 100 ? item.text.substring(0, 100) + '...' : item.text}</div>
+                  <div
+                    key={idx}
+                    className={`history-item ${item.result.toxic ? "toxic" : "safe"}`}
+                  >
+                    <div className="history-text">
+                      {item.text.length > 100 ? item.text.substring(0, 100) + "..." : item.text}
+                    </div>
                     <div className="history-result">
-                      <span className={`badge ${item.result.toxic ? 'toxic-badge' : 'safe-badge'}`}>
+                      <span
+                        className={`badge ${item.result.toxic ? "toxic-badge" : "safe-badge"}`}
+                      >
                         {item.result.toxic ? "Уытты" : "Қауіпсіз"}
                       </span>
                       <span className="score">({Math.round(item.result.score * 100)}%)</span>
                     </div>
-                    <div className="history-date">{new Date(item.createdAt).toLocaleString()}</div>
+                    <div className="history-date">
+                      {new Date(item.createdAt).toLocaleString()}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -319,25 +317,20 @@ function App() {
 
         {result && !showHistory && (
           <div className="result-section">
-            <div className={`result-card ${result.toxic ? 'toxic' : 'safe'}`}>
-              <h2>
-                {result.toxic ? "Уытты текст" : "Қауіпсіз текст"}
-              </h2>
-              
+            <div className={`result-card ${result.toxic ? "toxic" : "safe"}`}>
+              <h2>{result.toxic ? "Уытты текст" : "Қауіпсіз текст"}</h2>
               <div className="score-bar">
-                <div 
+                <div
                   className="score-fill"
                   style={{
                     width: `${result.score * 100}%`,
-                    backgroundColor: getScoreColor(result.score)
+                    backgroundColor: getScoreColor(result.score),
                   }}
                 />
               </div>
-              
               <p className="score-text">
                 {getScoreText(result.score)} ({Math.round(result.score * 100)}%)
               </p>
-              
               <div className="reason">
                 <strong>Себебі:</strong>
                 <p>{result.reason}</p>
@@ -350,31 +343,31 @@ function App() {
                 <div className="details-grid">
                   <div className="detail-item">
                     <span>Қорлау:</span>
-                    <span style={{color: getScoreColor(result.details.insult / 100)}}>
+                    <span style={{ color: getScoreColor(result.details.insult / 100) }}>
                       {Math.round(result.details.insult)}%
                     </span>
                   </div>
                   <div className="detail-item">
                     <span>Былапыт сөздер:</span>
-                    <span style={{color: getScoreColor(result.details.obscenity / 100)}}>
+                    <span style={{ color: getScoreColor(result.details.obscenity / 100) }}>
                       {Math.round(result.details.obscenity)}%
                     </span>
                   </div>
                   <div className="detail-item">
                     <span>Дөрекілік:</span>
-                    <span style={{color: getScoreColor(result.details.rudeness / 100)}}>
+                    <span style={{ color: getScoreColor(result.details.rudeness / 100) }}>
                       {Math.round(result.details.rudeness)}%
                     </span>
                   </div>
                   <div className="detail-item">
                     <span>Репутацияға нұқсан:</span>
-                    <span style={{color: getScoreColor(result.details.reputation / 100)}}>
+                    <span style={{ color: getScoreColor(result.details.reputation / 100) }}>
                       {Math.round(result.details.reputation)}%
                     </span>
                   </div>
                   <div className="detail-item">
                     <span>Қауіп:</span>
-                    <span style={{color: getScoreColor(result.details.danger / 100)}}>
+                    <span style={{ color: getScoreColor(result.details.danger / 100) }}>
                       {Math.round(result.details.danger)}%
                     </span>
                   </div>
@@ -386,7 +379,7 @@ function App() {
       </main>
 
       <footer className="footer">
-        <p>Қолданылған модель: Қазақ тіліндегі уытты сөздер базасы</p>
+        <p>Қолданылған модель: rubert-tiny-toxicity (Apache 2.0)</p>
         <p>© 2026 Smart Toxicity Detector</p>
       </footer>
     </div>
