@@ -319,25 +319,33 @@ function App() {
           <div className="result-section">
             <div className={`result-card ${result.toxic ? "toxic" : "safe"}`}>
               <h2>{result.toxic ? "Уытты текст" : "Қауіпсіз текст"}</h2>
-              <div className="score-bar">
-                <div
-                  className="score-fill"
-                  style={{
-                    width: `${result.score * 100}%`,
-                    backgroundColor: getScoreColor(result.score),
-                  }}
-                />
-              </div>
-              <p className="score-text">
-                {getScoreText(result.score)} ({Math.round(result.score * 100)}%)
-              </p>
+              
+              {result.toxic ? (
+                <>
+                  <div className="score-bar">
+                    <div
+                      className="score-fill"
+                      style={{
+                        width: `${result.score * 100}%`,
+                        backgroundColor: getScoreColor(result.score),
+                      }}
+                    />
+                  </div>
+                  <p className="score-text">
+                    {getScoreText(result.score)} ({Math.round(result.score * 100)}%)
+                  </p>
+                </>
+              ) : (
+                <p className="safe-message">Мәтін құрамында уытты сөздер жоқ</p>
+              )}
+              
               <div className="reason">
                 <strong>Себебі:</strong>
                 <p>{result.reason}</p>
               </div>
             </div>
 
-            {result.details && (
+            {result.toxic && result.details && (
               <div className="details">
                 <h3>Детальді анализ</h3>
                 <div className="details-grid">

@@ -92,7 +92,7 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// =================== ФУНКЦИЯ АНАЛИЗА (РЕГИСТРОНЕЗАВИСИМЫЙ ПОИСК) ===================
+// =================== ФУНКЦИЯ АНАЛИЗА ===================
 async function analyzeTextWithDatabase(text) {
     const normalizedText = text.toLowerCase().replace(/[^\w\s]/g, '');
     const words = normalizedText.split(/\s+/);
@@ -100,17 +100,15 @@ async function analyzeTextWithDatabase(text) {
 
     for (const word of words) {
         if (!word) continue;
-        // Регистронезависимый поиск с помощью регулярного выражения
+        // Регистронезависимый поиск
         const found = await ToxicWord.findOne({ word: { $regex: new RegExp('^' + word + '$', 'i') } });
         if (found) {
             console.log(`✅ Найдено слово: ${found.word}`);
             foundWords.push(found);
-        } else {
-            console.log(`❌ Слово не найдено: ${word}`);
         }
     }
 
-    // Поиск фраз (с пробелами)
+    // Поиск фраз
     const allPhrases = await ToxicWord.find({});
     for (const phrase of allPhrases) {
         if (phrase.word.includes(' ') && normalizedText.includes(phrase.word.toLowerCase())) {
@@ -138,8 +136,10 @@ async function analyzeTextWithDatabase(text) {
         maxScores.danger = Math.max(maxScores.danger, Number(word.danger) || 0);
     }
 
+    // Если найдено хотя бы одно слово – текст токсичен
+    const isToxic = true;
     const toxicScore = maxScores.toxic;
-    const isToxic = toxicScore > 0.5;
+
     let reason = "";
     if (maxScores.danger > 0.7) reason = "Өте қауіпті: мәтін беделге нұқсан келтіруі мүмкін";
     else if (maxScores.danger > 0.5) reason = "Жоғары тәуекел: беделге ықтимал зиян";
