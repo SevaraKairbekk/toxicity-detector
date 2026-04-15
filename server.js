@@ -93,12 +93,12 @@ const authenticateToken = (req, res, next) => {
 };
 
 // =================== ФУНКЦИЯ АНАЛИЗА ===================
-console.log('Анализ текста:', text);
-console.log('Нормализованный текст:', normalizedText);
-console.log('Слова:', words);
 async function analyzeTextWithDatabase(text) {
+    console.log(' Анализ текста:', text);
     const normalizedText = text.toLowerCase().replace(/[^\w\s]/g, '');
+    console.log('Нормализованный текст:', normalizedText);
     const words = normalizedText.split(/\s+/);
+    console.log('Слова:', words);
     let foundWords = [];
 
     for (const word of words) {
