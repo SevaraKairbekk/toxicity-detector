@@ -26,7 +26,6 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
-// Проверка переменных окружения
 if (!MONGODB_URI) console.error("MONGODB_URI не задан");
 if (!JWT_SECRET) console.error("JWT_SECRET не задан");
 
@@ -41,7 +40,7 @@ mongoose.connect(MONGODB_URI, {
 mongoose.connection.on('error', err => console.error('MongoDB connection error:', err));
 mongoose.connection.on('disconnected', () => console.log('MongoDB отключена'));
 
-// =================== СХЕМЫ БАЗЫ ДАННЫХ ===================
+// =================== СХЕМЫ ===================
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true, trim: true, minlength: 3 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -80,7 +79,7 @@ const History = mongoose.model("History", historySchema);
 const Warning = mongoose.model("Warning", warningSchema);
 const ToxicWord = mongoose.model("ToxicWord", toxicWordSchema);
 
-// =================== MIDDLEWARE АУТЕНТИФИКАЦИИ ===================
+// =================== АУТЕНТИФИКАЦИЯ ===================
 const authenticateToken = (req, res, next) => {
     if (req.headers['x-internal-request'] === 'true') return next();
     const authHeader = req.headers["authorization"];
@@ -93,20 +92,31 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// =================== ФУНКЦИЯ АНАЛИЗА ПО КАЗАХСКОЙ БАЗЕ ===================
+// =================== ФУНКЦИЯ АНАЛИЗА ===================
 async function analyzeTextWithDatabase(text) {
+    // Нормализация: нижний регистр, удаление пунктуации
     const normalizedText = text.toLowerCase().replace(/[^\w\s]/g, '');
     const words = normalizedText.split(/\s+/);
     let foundWords = [];
 
+    // Поиск отдельных слов с игнорированием регистра (используем regex)
     for (const word of words) {
-        const found = await ToxicWord.findOne({ word: word });
-        if (found) foundWords.push(found);
+        if (!word) continue;
+        // Ищем точное совпадение, но без учёта регистра
+        const found = await ToxicWord.findOne({ word: { $regex: new RegExp('^' + word + '$', 'i') } });
+        if (found) {
+            console.log(`Найдено слово: ${found.word}`);
+            foundWords.push(found);
+        } else {
+            console.log(`Слово не найдено: ${word}`);
+        }
     }
 
+    // Поиск фраз (с пробелами) - тоже без учёта регистра
     const allPhrases = await ToxicWord.find({});
     for (const phrase of allPhrases) {
-        if (phrase.word.includes(' ') && normalizedText.includes(phrase.word)) {
+        if (phrase.word.includes(' ') && normalizedText.includes(phrase.word.toLowerCase())) {
+            console.log(`Найдена фраза: ${phrase.word}`);
             foundWords.push(phrase);
         }
     }
@@ -122,7 +132,6 @@ async function analyzeTextWithDatabase(text) {
 
     const maxScores = { toxic: 0, insult: 0, obscenity: 0, rudeness: 0, reputation: 0, danger: 0 };
     for (const word of foundWords) {
-        // Принудительное преобразование в число, защита от null/undefined
         maxScores.toxic = Math.max(maxScores.toxic, Number(word.toxic) || 0);
         maxScores.insult = Math.max(maxScores.insult, Number(word.insult) || 0);
         maxScores.obscenity = Math.max(maxScores.obscenity, Number(word.obscenity) || 0);
