@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 
 // API URL из переменной окружения
-// Убираем process.env, ставим правильный URL
 const API_URL = "https://toxicity-detector-cbgc.onrender.com";
+
 function App() {
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
@@ -13,7 +13,6 @@ function App() {
   // аутентификация
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [user, setUser] = useState(null);
-  const [showAuth, setShowAuth] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [authData, setAuthData] = useState({ username: "", email: "", password: "" });
   const [authError, setAuthError] = useState("");
@@ -26,8 +25,9 @@ function App() {
   useEffect(() => {
     if (token) {
       fetchUserData();
-      fetchHistory(); // Загружаем историю при входе
+      fetchHistory();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const fetchUserData = async () => {
@@ -86,7 +86,6 @@ function App() {
         localStorage.setItem("token", data.token);
         setToken(data.token);
         setUser(data.user);
-        setShowAuth(false);
         setAuthData({ username: "", email: "", password: "" });
         setAuthError("");
       } else {
@@ -142,8 +141,8 @@ function App() {
       }
 
       setResult(data);
-      await fetchUserData(); // Обновляем статистику
-      await fetchHistory(); // Обновляем историю
+      await fetchUserData();
+      await fetchHistory();
       
     } catch (error) {
       console.error("Қателік:", error);
@@ -351,26 +350,32 @@ function App() {
                 <div className="details-grid">
                   <div className="detail-item">
                     <span>Қорлау:</span>
-                    <span style={{color: getScoreColor(result.details.insult)}}>
-                      {Math.round(result.details.insult * 100)}%
+                    <span style={{color: getScoreColor(result.details.insult / 100)}}>
+                      {Math.round(result.details.insult)}%
                     </span>
                   </div>
                   <div className="detail-item">
                     <span>Былапыт сөздер:</span>
-                    <span style={{color: getScoreColor(result.details.obscenity)}}>
-                      {Math.round(result.details.obscenity * 100)}%
+                    <span style={{color: getScoreColor(result.details.obscenity / 100)}}>
+                      {Math.round(result.details.obscenity)}%
                     </span>
                   </div>
                   <div className="detail-item">
-                    <span>Қауіп:</span>
-                    <span style={{color: getScoreColor(result.details.threat)}}>
-                      {Math.round(result.details.threat * 100)}%
+                    <span>Дөрекілік:</span>
+                    <span style={{color: getScoreColor(result.details.rudeness / 100)}}>
+                      {Math.round(result.details.rudeness)}%
                     </span>
                   </div>
                   <div className="detail-item">
                     <span>Репутацияға нұқсан:</span>
-                    <span style={{color: getScoreColor(result.details.dangerous)}}>
-                      {Math.round(result.details.dangerous * 100)}%
+                    <span style={{color: getScoreColor(result.details.reputation / 100)}}>
+                      {Math.round(result.details.reputation)}%
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span>Қауіп:</span>
+                    <span style={{color: getScoreColor(result.details.danger / 100)}}>
+                      {Math.round(result.details.danger)}%
                     </span>
                   </div>
                 </div>
@@ -381,7 +386,7 @@ function App() {
       </main>
 
       <footer className="footer">
-        <p>Қолданылған модель: rubert-tiny-toxicity (Apache 2.0)</p>
+        <p>Қолданылған модель: Қазақ тіліндегі уытты сөздер базасы</p>
         <p>© 2026 Smart Toxicity Detector</p>
       </footer>
     </div>
