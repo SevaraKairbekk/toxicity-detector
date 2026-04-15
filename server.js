@@ -92,31 +92,29 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// =================== ФУНКЦИЯ АНАЛИЗА ===================
+// =================== ФУНКЦИЯ АНАЛИЗА (РЕГИСТРОНЕЗАВИСИМЫЙ ПОИСК) ===================
 async function analyzeTextWithDatabase(text) {
-    // Нормализация: нижний регистр, удаление пунктуации
     const normalizedText = text.toLowerCase().replace(/[^\w\s]/g, '');
     const words = normalizedText.split(/\s+/);
     let foundWords = [];
 
-    // Поиск отдельных слов с игнорированием регистра (используем regex)
     for (const word of words) {
         if (!word) continue;
-        // Ищем точное совпадение, но без учёта регистра
+        // Регистронезависимый поиск с помощью регулярного выражения
         const found = await ToxicWord.findOne({ word: { $regex: new RegExp('^' + word + '$', 'i') } });
         if (found) {
-            console.log(`Найдено слово: ${found.word}`);
+            console.log(`✅ Найдено слово: ${found.word}`);
             foundWords.push(found);
         } else {
-            console.log(`Слово не найдено: ${word}`);
+            console.log(`❌ Слово не найдено: ${word}`);
         }
     }
 
-    // Поиск фраз (с пробелами) - тоже без учёта регистра
+    // Поиск фраз (с пробелами)
     const allPhrases = await ToxicWord.find({});
     for (const phrase of allPhrases) {
         if (phrase.word.includes(' ') && normalizedText.includes(phrase.word.toLowerCase())) {
-            console.log(`Найдена фраза: ${phrase.word}`);
+            console.log(`✅ Найдена фраза: ${phrase.word}`);
             foundWords.push(phrase);
         }
     }
